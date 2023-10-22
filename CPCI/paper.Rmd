@@ -1,0 +1,271 @@
+---
+title: "Paper"
+author: "Spencer Wang"
+# date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    fig_caption: yes
+  word_document: default
+  html_document:
+    df_print: paged
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+# Abstract
+
+**Background** 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning = F)
+```
+```{r, include=FALSE}
+library(TwoSampleMR)
+library(RadialMR)
+library(gridExtra)
+```
+
+- DATA RETRIEVAL
+
+HDL
+```{r, include=FALSE}
+exposure_tri_HDL <- extract_instruments("ieu-b-109")
+exposure_tri_HDL <- subset(exposure_tri_HDL, pval.exposure<5e-8)
+exposure_dat_HDL <- clump_data(exposure_tri_HDL, clump_r2=0.001, clump_kb = 10000, pop = 'EUR')
+outcome_dat_HDL <- extract_outcome_data(exposure_dat_HDL$SNP,"finn-b-I9_CVD")
+dat_1_HDL <- harmonise_data(exposure_dat_HDL,outcome_dat_HDL)
+```
+LDL
+```{r, include=FALSE}
+exposure_tri_LDL <- extract_instruments("ieu-b-110")
+exposure_tri_LDL <- subset(exposure_tri_LDL, pval.exposure<5e-8)
+exposure_dat_LDL <- clump_data(exposure_tri_LDL, clump_r2=0.001, clump_kb = 10000, pop = 'EUR')
+outcome_dat_LDL <- extract_outcome_data(exposure_dat_LDL$SNP,"finn-b-I9_CVD")
+dat_1_LDL <- harmonise_data(exposure_dat_LDL,outcome_dat_LDL)
+```
+Triglyceride
+```{r, include=FALSE}
+exposure_tri <- extract_instruments("ieu-b-111")
+exposure_tri <- subset(exposure_tri, pval.exposure<5e-8)
+exposure_dat <- clump_data(exposure_tri, clump_r2=0.001, clump_kb = 10000, pop = 'EUR')
+outcome_dat <- extract_outcome_data(exposure_dat$SNP,"finn-b-I9_CVD")
+dat_1 <- harmonise_data(exposure_dat,outcome_dat)
+```
+
+
+
+- DATA PROCESS
+
+LDL
+
+```{r}
+library(RadialMR)
+dat_1_radial_LDL <- format_radial(BXG = dat_1_LDL$beta.exposure, BYG = dat_1_LDL$beta.outcome, seBXG = dat_1_LDL$se.exposure, seBYG = dat_1_LDL$se.outcome, RSID=dat_1_LDL$SNP)
+ivwradial_1_LDL <- ivw_radial(dat_1_radial_LDL, weights=1)
+ivwradial_1_LDL$outliers
+dat_1_LDL <- subset(dat_1_LDL, !SNP %in% ivwradial_1_LDL$outliers$SNP)
+res_1_LDL <- mr(dat_1_LDL)
+```
+
+Tri
+
+```{r}
+library(RadialMR)
+dat_1_radial <- format_radial(BXG = dat_1$beta.exposure, BYG = dat_1$beta.outcome, seBXG = dat_1$se.exposure, seBYG = dat_1$se.outcome, RSID=dat_1$SNP)
+ivwradial_1 <- ivw_radial(dat_1_radial, weights=1)
+ivwradial_1$outliers
+dat_1 <- subset(dat_1, !SNP %in% ivwradial_1$outliers$SNP)
+res_1 <- mr(dat_1)
+```
+
+HDL
+
+```{r}
+library(RadialMR)
+dat_1_radial_HDL <- format_radial(BXG = dat_1_HDL$beta.exposure, BYG = dat_1_HDL$beta.outcome, seBXG = dat_1_HDL$se.exposure, seBYG = dat_1_HDL$se.outcome, RSID=dat_1_HDL$SNP)
+ivwradial_1_HDL <- ivw_radial(dat_1_radial_HDL, weights=1)
+ivwradial_1_HDL$outliers
+dat_1_HDL <- subset(dat_1_HDL, !SNP %in% ivwradial_1_HDL$outliers$SNP)
+res_1_HDL <- mr(dat_1_HDL)
+```
+
+
+- MRPRESSO
+
+HDL
+```{r}
+library(MRPRESSO)
+mr_presso(BetaOutcome ="beta.outcome", BetaExposure = "beta.exposure", SdOutcome ="se.outcome", SdExposure = "se.exposure", OUTLIERtest = TRUE,DISTORTIONtest = TRUE, data = dat_1_HDL, NbDistribution = 1000,  SignifThreshold = 0.05)
+```
+
+
+
+
+
+- Draw Figure
+
+HDL
+```{r}
+p1_HDL <- mr_scatter_plot(res_1_HDL, dat_1_HDL)
+p2_HDL <- mr_forest_plot(mr_singlesnp(dat_1_HDL, all_method="mr_ivw"))
+res_single_HDL <- mr_singlesnp(dat_1_HDL)
+p3_HDL <- mr_funnel_plot(res_single_HDL)
+```
+LDL
+```{r}
+p1_LDL <- mr_scatter_plot(res_1_LDL, dat_1_LDL)
+p2_LDL <- mr_forest_plot(mr_singlesnp(dat_1_LDL, all_method="mr_ivw"))
+res_single_LDL <- mr_singlesnp(dat_1_LDL)
+p3_LDL <- mr_funnel_plot(res_single_LDL)
+```
+Triglyceride
+```{r}
+p1_Tri <- mr_scatter_plot(res_1, dat_1)
+p2_Tri <- mr_forest_plot(mr_singlesnp(dat_1, all_method="mr_ivw"))
+res_single_Tri <- mr_singlesnp(dat_1)
+p3_Tri <- mr_funnel_plot(res_single_Tri)
+```
+
+```{r}
+library(patchwork)
+p1 <- p1_HDL[[1]] + p1_LDL[[1]] + p1_Tri[[1]]
+p2 <- p2_HDL[[1]] + p2_LDL[[1]] + p2_Tri[[1]]
+p3 <- p3_HDL[[1]] + p3_LDL[[1]] + p3_Tri[[1]]
+```
+
+```{r}
+library(ggplot2)
+ggsave(p1, file="C:/Users/33385/Desktop/CPCI/mr_scatter_plot_HDL.png", width = 12, height=7, dpi=800)
+
+library(ggplot2)
+ggsave(p2, file="C:/Users/33385/Desktop/CPCI/mr_forest_plot_HDL.png",
+width = 17, height=25, dpi= 800)
+
+library(ggplot2)
+ggsave(p3 , file="C:/Users/33385/Desktop/CPCI/mr_tunnel_plot_HDL.png", 
+       width = 12, height=7, dpi=1500)
+
+```
+
+
+
+
+```{r}
+res_1
+OR <- exp(res_1$b)
+OR
+se <- res_1_LDL$se
+b <- res_1_LDL$b
+lower <- exp(b - 1.96 * se)
+upper <- exp(b + 1.96 * se)
+FF <- (b*b) / (se*se)
+lower
+upper
+FF
+```
+
+```{r}
+# 异质性检验
+het_HDL <- mr_heterogeneity(dat_1_HDL)
+het_HDL
+het_LDL <- mr_heterogeneity(dat_1_LDL)
+het_LDL
+het_Tri <- mr_heterogeneity(dat_1)
+het_Tri
+```
+
+```{r}
+OR <- exp(c$b)
+OR
+se <- c$se
+b <- c$b
+lower <- exp(b - 1.96 * se)
+upper <- exp(b + 1.96 * se)
+FF <- (b*b) / (se*se)
+lower
+upper
+FF
+```
+
+使用随机模型
+```{r}
+a <- mr(dat_1_HDL,method_list=c('mr_ivw_mre'))
+d <- mr(dat_1_LDL,method_list=c('mr_ivw_mre'))
+c <- mr(dat_1,method_list=c('mr_ivw_mre'))
+```
+
+```{r}
+# 多效性检验
+pleio_HDL <- mr_pleiotropy_test(dat_1_HDL)
+pleio_HDL
+pleio_LDL <- mr_pleiotropy_test(dat_1_LDL)
+pleio_LDL
+pleio_Tri <- mr_pleiotropy_test(dat_1)
+pleio_Tri
+# pval > 0.05认为没有水平多效性
+```
+
+```{r}
+single_HDL <- mr_leaveoneout(dat_1_HDL)
+single_LDL <- mr_leaveoneout(dat_1_LDL)
+single_Tri <- mr_leaveoneout(dat_1)
+p4_HDL <- mr_leaveoneout_plot(single_HDL)
+p4_LDL <- mr_leaveoneout_plot(single_LDL)
+p4_Tri <- mr_leaveoneout_plot(single_Tri)
+p4 <- p4_HDL[[1]] + p4_LDL[[1]] + p4_Tri[[1]]
+```
+
+```{r}
+
+ggsave(p4, file="C:/Users/33385/Desktop/CPCI/逐个检验_HDL.png", 
+       width = 17, height = 25, dpi = 800)
+
+```
+
+- reverse mr
+```{r}
+exposure_tri_HDL_re <- extract_instruments("finn-b-I9_CVD")
+exposure_tri_HDL_re <- subset(exposure_tri_HDL_re, pval.exposure<5e-8)
+exposure_dat_HDL_re <- clump_data(exposure_tri_HDL_re, clump_r2=0.001, clump_kb = 10000, pop = 'EUR')
+outcome_dat_HDL_re <- extract_outcome_data(exposure_dat_HDL_re$SNP,"ieu-b-109")
+dat_1_HDL_re <- harmonise_data(exposure_dat_HDL_re,outcome_dat_HDL_re)
+```
+
+```{r}
+exposure_tri_LDL_re <- extract_instruments("finn-b-I9_CVD")
+exposure_tri_LDL_re <- subset(exposure_tri_LDL_re, pval.exposure<5e-8)
+exposure_dat_LDL_re <- clump_data(exposure_tri_LDL_re, clump_r2=0.001, clump_kb = 10000, pop = 'EUR')
+outcome_dat_LDL_re <- extract_outcome_data(exposure_dat_LDL_re$SNP,"ieu-b-110")
+dat_1_LDL_re <- harmonise_data(exposure_dat_LDL_re,outcome_dat_LDL_re)
+```
+
+
+
+
+
+```{r}
+dat_1_radial_HDL_re <- format_radial(BXG = dat_1_HDL_re$beta.exposure, BYG = dat_1_HDL_re$beta.outcome, seBXG = dat_1_HDL_re$se.exposure, seBYG = dat_1_HDL_re$se.outcome, RSID=dat_1_HDL_re$SNP)
+ivwradial_1_HDL_re <- ivw_radial(dat_1_radial_HDL_re, weights=1)
+ivwradial_1_HDL_re$outliers
+dat_1_HDL_re <- subset(dat_1_HDL_re, !SNP %in% ivwradial_1_HDL_re$outliers$SNP)
+res_1_HDL_re <- mr(dat_1_HDL_re)
+```
+
+```{r}
+dat_1_radial_LDL_re <- format_radial(BXG = dat_1_LDL_re$beta.exposure, BYG = dat_1_LDL_re$beta.outcome, seBXG = dat_1_LDL_re$se.exposure, seBYG = dat_1_LDL_re$se.outcome, RSID=dat_1_LDL_re$SNP)
+ivwradial_1_LDL_re <- ivw_radial(dat_1_radial_LDL_re, weights=1)
+ivwradial_1_LDL_re$outliers
+dat_1_LDL_re <- subset(dat_1_LDL_re, !SNP %in% ivwradial_1_LDL_re$outliers$SNP)
+res_1_LDL_re <- mr(dat_1_LDL_re)
+```
+
+
+
+
+
+```{r}
+p1_HDL_re <- mr_scatter_plot(res_1_HDL_re, dat_1_HDL_re)
+p_2_LDL_re <- mr_scatter_plot(res_1_LDL_re, dat_1_LDL_re)
+```
